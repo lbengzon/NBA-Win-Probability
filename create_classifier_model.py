@@ -38,8 +38,8 @@ def getSecondsPassed(period, play_clock):
     clock_prog = re.compile(CLOCK_REGEX)
     seconds = 0
     #calculate the seconds from the previous periods
-    for p in range(0,period - 1):
-        if(p > 5):
+    for p in range(1,period):
+        if(p >= 5):
             seconds += 300
         else:
             seconds += 720
@@ -66,6 +66,8 @@ def parse_csv(pbp_csv):
     # this set will hold all the results
     y = []
     game_results = {}
+    #this will hold the full rows used (including all columns of original csv)
+    full_features = []
     score = '0 - 0'
     with open(pbp_csv, 'r') as f:
         reader = csv.reader(f)
@@ -80,6 +82,8 @@ def parse_csv(pbp_csv):
             # parse the score
             if (score_prog.match(row[6])):
                 score = row[6]
+            else:
+                row[6] = score
             score_array = score_prog.split(score)
             away_score = int(score_array[1])
             home_score = int(score_array[2])
@@ -99,15 +103,19 @@ def parse_csv(pbp_csv):
                 # Get which team the play belongs to
                 home_description = row[4]
                 away_description = row[5]
-                team_play = home_team_play if home_team_play != '' else away_team_play
                 if home_description == '' and away_description == '':
                     team_play = both_team_play
+                elif home_description != '':
+                    team_play = home_team_play
+                elif away_description != '':
+                    team_play = away_team_play
 
                 # get the seconds passed since the start of the game
                 seconds_passed = getSecondsPassed(period, play_clock)
 
                 # game id is just added so that later we can find the result of the game (it will be removed later)
                 x.append([game_id, seconds_passed, away_score, home_score, event_code, team_play])
+                full_features.append(row)
 
     # for each feature vector, find the result of the game and add it to the results (y)
     for feature_vector in x:
@@ -122,10 +130,10 @@ def parse_csv(pbp_csv):
         # remove the game id from the feature vector because we dont want it as a feature
         feature_vector.pop(0)
 
-    return x, y
+    return x, y, full_features
 
 def create_pickle():
-    x, y = parse_csv('pbp.csv')
+    x, y, full_features = parse_csv('pbp.csv')
 
     mid = int(len(x)/ 2)
     train_x = x[:mid]

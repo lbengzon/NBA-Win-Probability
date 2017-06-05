@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <script type="text/javascript" src="https://d3js.org/d3.v4.min.js"></script>
+        <title>CS1951A: Marey&rsquo;s Trains</title>
+        <style type="text/css">
+        .grid .tick {
+            stroke: lightgrey;
+            opacity: 0.7;
+        }
+        .grid path {
+              stroke-width: 0;
+        }
+
+        .axis {
+          font: 10px sans-serif;
+        }
+
+        .domain {
+            stroke:white;
+        }
+
+        /********************
+         * TOOLTIP CSS
+         */
+
+        .nvtooltip {
+          position: absolute;
+          background-color: rgba(255,255,255,1);
+          padding: 10px;
+          border: 1px solid #ddd;
+
+          font-family: Arial;
+          font-size: 13px;
+
+          transition: opacity 500ms linear;
+          -moz-transition: opacity 500ms linear;
+          -webkit-transition: opacity 500ms linear;
+
+          transition-delay: 500ms
+          -moz-transition-delay: 500ms;
+          -webkit-transition-delay: 500ms;
+
+          -moz-box-shadow: 4px 4px 12px rgba(0,0,0,.5);
+          -webkit-box-shadow: 4px 4px 12px rgba(0,0,0,.5);
+          box-shadow: 4px 4px 12px rgba(0,0,0,.5);
+
+          -moz-border-radius: 15px;
+          border-radius: 15px;
+        }
+
+        .nvtooltip h3 {
+          margin: 0;
+          padding: 0;
+          text-align: center;
+        }
+
+        .nvtooltip p {
+          margin: 0;
+          padding: 0;
+          text-align: center;
+        }
+
+        .nvtooltip span {
+          display: inline-block;
+          margin: 2px 0;
+        }
+
+        </style>
+    </head>
+    <body>
+        <p id="chart"></p>
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+        <script type="text/javascript" src="nvtooltip.js"></script>
+        <script type="text/javascript" src="predict.js"></script>
+
+    </body>
+</html>
