@@ -19,6 +19,7 @@
 
         .domain {
             stroke:white;
+            stroke-width: 0px;
         }
 
         /********************
@@ -28,25 +29,12 @@
         .nvtooltip {
           position: absolute;
           background-color: rgba(255,255,255,1);
-          padding: 10px;
+          padding: 5px;
           border: 1px solid #ddd;
 
           font-family: Arial;
           font-size: 13px;
 
-          transition: opacity 500ms linear;
-          -moz-transition: opacity 500ms linear;
-          -webkit-transition: opacity 500ms linear;
-
-          transition-delay: 500ms
-          -moz-transition-delay: 500ms;
-          -webkit-transition-delay: 500ms;
-
-          -moz-box-shadow: 4px 4px 12px rgba(0,0,0,.5);
-          -webkit-box-shadow: 4px 4px 12px rgba(0,0,0,.5);
-          box-shadow: 4px 4px 12px rgba(0,0,0,.5);
-
-          -moz-border-radius: 15px;
           border-radius: 15px;
         }
 
@@ -68,12 +56,18 @@
         }
 
         </style>
+        <link href="nouislider.min.css" rel="stylesheet">
+
     </head>
     <body>
-        <p id="chart"></p>
+        <script src="nouislider.min.js"></script>
         <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
         <script type="text/javascript" src="nvtooltip.js"></script>
         <script type="text/javascript" src="predict.js"></script>
+
+        <p id="chart">
+        </p>
+        <div id="slider"></div>
 
     </body>
 </html>

@@ -4,10 +4,13 @@ $(document).ready(() => {
 	let margin = {top: 19.5, right: 0, bottom: 19.5, left: 50};
 	let width = 960 - margin.right;
 	let height = 500 - margin.top - margin.bottom;
-	const PERIOD_TICKS = {"Q1": 0, "Q2": 720, "Q3": 1440, "Q4": 2160, "OT1": 2880, "OT2": 3180, "OT3": 3480, "OT4": 3780, "OT5": 4080, "OT6": 4380}
+	const PERIOD_TICKS = {0:"Q1", 720:"Q2",  1440:"Q3",  2160: "Q4", 2880:"OT1", 3180:"OT2", 3480:"OT3", 3780:"OT4", 4080:"OT5", 4380:"OT6"}
 	const PERCENTAGE_TICKS = [0, 0.5, 1]
 
 	d3.json("../single_game_prediction.json", function(plays) {
+		let homeTeam = "homeTeam";
+		let awayTeam = "awayTeam";
+
 		//Figure out the max and min time passed
 		let maxTimePassed = 0
 		let minTimePassed = null
@@ -20,21 +23,28 @@ $(document).ready(() => {
 		    	minTimePassed = play.time_passed
 		    }
 		}
-		//round the earliest arrival time down to the hour
+
+		var slider = document.getElementById('slider');
+		slider.style.width = width;
+
+		slider.style.margin = '0 auto 30px';
+		noUiSlider.create(slider, {
+			start: [minTimePassed, maxTimePassed],
+			connect: true,
+			range: {
+				'min': minTimePassed,
+				'max': maxTimePassed
+			}
+		});
+
 		//create the y scale using a domain from 0 to max distance
 	    let yScale = d3.scaleLinear().domain([1, 0]).range([0, height])
-	    //create the x scale using the earliest departure and latest arrival time.
-		let xScale = d3.scaleLinear().domain([minTimePassed, maxTimePassed]).range([0, width])
 		
 
-		// Create the x axis with the ticks for the periods (e.g Q1, Q2)
-		let xAxis = d3.axisBottom(xScale).tickValues(Object.values(PERIOD_TICKS)).tickFormat(function(period, i){
-		    	return Object.keys(PERIOD_TICKS)[i];
-		    }).tickSize(-height, 0);
 		//Create the y axis with ticks of the percentage of home team winning the game
 		let yAxis = d3.axisLeft(yScale).tickValues(PERCENTAGE_TICKS).tickFormat(function(period, i){
 			return period;
-		}).tickSize(-width, 0)
+		}).tickSize(-width, 0);
 
 		// Create the SVG container and set the origin
 		let svg = d3.select("#chart").append("svg")
@@ -43,53 +53,31 @@ $(document).ready(() => {
 		    .append("g")
 		    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-		//Place the x axis at the bottom
-		svg.append("g")
-		    .call(xAxis).attr("transform", "translate(0," + height + ")")
+		let xScale, 
+		xAxis, 
+		xAxisVis = svg.append("g").attr("transform", "translate(0," + height + ")");
+
+		redrawXAxis(minTimePassed, maxTimePassed);
+
 
 		//Add the y axis
 		svg.append("g").call(yAxis);
 
-		// //Moves the vertical line on the graph to be under the mouse.
-		// function moveVerticalLine(){
-		// 	const mouseX = d3.mouse(this)[0] - margin.left
-		// 	let path = d3.path();
-		// 	path.moveTo(mouseX, 0)
-		// 	path.lineTo(mouseX, height)
-		// 	verticalLine.attr("d", path.toString())
-		// 	if(mouseX < 0 || mouseX > width){
-		// 		verticalLine.attr("visibility", "hidden");
-		// 	}
-		// 	else{
-		// 		verticalLine.attr("visibility", "visible");
-		// 	}
-
-		// }
-
-		// //Shows the vertical line on the graph.
-		// function showVerticalLine(){
-		// 	verticalLine.attr("visibility", "visible");
-
-		// }
-
-		// //hides the vertical line on the graph.
-		// function hideVerticalLine(){
-		// 	verticalLine.attr("visibility", "hidden");
-
-		// }
-
-		// //Add the vertical line to the svg
-		// let verticalLine = svg.append("path").attr("stroke", "black").attr("stroke-width", "2").attr("class", "verticalLine").on("mousemove", moveVerticalLine)
-
-		// //add the event handlers making the vertical line appear under the mouse.
-		// d3.select("#chart")
-		// 	    .on("mousemove", moveVerticalLine)
-		// 	    .on("mouseover", showVerticalLine)
-		// 	    .on("mouseleave", hideVerticalLine);
-
 		//Add the paths to the svg
-		svg.append("g").attr("class", "schedules").selectAll("path").data([plays]).enter().append("path").attr("d", 
-			position).attr("stroke", "black").attr("stroke-width", "3").attr("fill", "transparent");
+		let winProb = svg.append("g").attr("class", "winProb");
+
+		var clip = winProb.append("defs").append("svg:clipPath")
+        .attr("id", "clip")
+        .append("svg:rect")
+        .attr("id", "clip-rect")
+        .attr("x", "0")
+        .attr("y", "0")
+        .attr("width", width)
+        .attr("height", height);
+
+		drawWinPath();
+
+
 
 		//this is the where the tooltip circle will be added 
 		let focus = svg.append("g")
@@ -102,11 +90,11 @@ $(document).ready(() => {
 			.style("stroke", "blue")
 			.attr("r", 4);
 
+		//Create the voronoi that will be used to find the nearest point
 		let voronoi = d3.voronoi()
 			.x(function(d) { return xScale(d.time_passed); })
 	  		.y(function(d) { return yScale(d.home_percentage); })
 	  		.extent([[0, 0], [width, height]]);
-
 	  	let voronoiData = voronoi(plays);
 
 	    //append the rectangle which when interacted with, will affect the position and visibility of the tooltip
@@ -119,37 +107,138 @@ $(document).ready(() => {
 			.on("mouseout", function() { focus.style("display", "none"); })
 			.on("mousemove", mouseMove);
 
-		let bisectTimePassed = d3.bisector(function(d) { return d.time_passed; }).left;
-		
+		//Whenever the slider updates, redraw the graph.
+		slider.noUiSlider.on('update', redrawGraph);
+
+		//Redraws the entire graph based on the new min and max time passed values
+		function redrawGraph(values){
+			redrawXAxis(values[0], values[1]);
+			drawWinPath();
+			//recallibrate the voronoi
+			voronoiData = voronoi(plays);
+		}
+
+		function drawWinPath(){
+			winProb.selectAll("path").remove();
+			winProb.selectAll("path").data([plays]).enter().append("path").attr("d", 
+				position).attr("stroke", "black").attr("stroke-width", "2").attr("fill", "transparent").attr("clip-path", "url(#clip)");
+		}
+
+		//Draws the x axis based on the min and max time passed values
+		function redrawXAxis(minTimePassed, maxTimePassed){
+			//create the x scale using the earliest departure and latest arrival time.
+			xScale = d3.scaleLinear().domain([minTimePassed, maxTimePassed]).range([0, width])
+			//get the period ticks based on the min and max time passed of the game
+			periodTicks = getPeriodTicks(minTimePassed, maxTimePassed);
+			// Create the x axis with the ticks for the periods (e.g Q1, Q2)
+			xAxis = d3.axisBottom(xScale).tickValues(periodTicks).tickFormat(function(period, i){
+		    	return PERIOD_TICKS[period];
+		    }).tickSize(-height, 0);
+		    //Draw the axis
+		    xAxisVis.call(xAxis);
+		}
+
+		//Gets the ticks based on the the start and end of the graph
+		function getPeriodTicks(minTimePassed, maxTimePassed){
+			let periodTicks = [];
+			minTimePassed = Math.round(minTimePassed)
+			maxTimePassed = Math.round(maxTimePassed);
+			ticks = Object.keys(PERIOD_TICKS);
+			for(let i in ticks){
+				let tick = ticks[i];
+				console.log(maxTimePassed);
+				console.log(tick);
+				if (tick >= minTimePassed && tick < maxTimePassed){
+					periodTicks.push(tick);
+				}
+			}
+			return periodTicks;
+		}
 
 		function mouseMove(){
 			const mouseX = d3.mouse(this)[0]
 	    	const mouseY = d3.mouse(this)[1]
+	    	//try to find a point that is close to the mouse cursor
 	    	const point = voronoiData.find(mouseX, mouseY, 50)
+	    	//if we have found a point within 50 px from the mouse
 	    	if(point !== null){
+	    		//Show the focus tool tip
 	    		focus.style("display", null);
+	    		//Move the circle to the point that was found
 				focus.select("circle.y")
 					.attr("transform",  
 						"translate(" + point[0] + "," +  
 										point[1] + ")"); 
-				nvtooltip.show([point[0], point[1]], 'fdsafdsa')
-	    	}
+				//remove the old tool tip if there was one
+				nvtooltip.cleanup();
+				//get the content to be displayed in the tool tip from the data
+				content = createToolTipContent(point.data);
+				//Get the quartile that the point is in so that we know where to place the tooltip
+				let quartile = getQuartile(point);
+				//display the tooltip
+				nvtooltip.show([point[0] + margin.left, point[1] + margin.top], content, quartile)
+	    	} //if we haven't found a point
 	    	else{
+	    		//remove the tooltip
+				nvtooltip.cleanup()
 	    		focus.style("display", "none");
 	    	}
 		}
-		// .on("mouseover", highlightPath)
-		// .on("mouseout", unHighlightPath)
 
-		// //Removes Highlights from the track that the mouse just left
-		// function unHighlightPath(p){
-		// 	d3.select(this).attr("stroke", "black").attr("stroke-width", "3")
-		// }
+		//returns the quartile that the mouse is in. Either 'q1', 'q2', 'q3', 'q3'
+		function getQuartile(point){
+			let quartile = ""
+			if(point[0] > width/2 && point[1] < height/2){
+				quartile = "q1"
+			} else if(point[0] < width/2 && point[1] < height/2){
+				quartile = "q2"
+			} else if(point[0] < width/2 && point[1] > height/2){
+				quartile = "q3"
+			} else if(point[0] > width/2 && point[1] > height/2){
+				quartile = "q4"
+			}
+			return quartile;
+		}
 
-		// //Highlights the path that the mouse is currently over
-		// function highlightPath(p){
-		// 	d3.select(this).attr("stroke", "red").attr("stroke-width", "5")
-		// }
+		//given the point data, creates the content that will be inside the tool tip
+		function createToolTipContent(pointData){
+			//Change the winning percentage from decimal to a percentage rounded to the nearest hundredth
+			let winPercentage = Math.round(pointData.home_percentage * 10000)/100 + "%";
+
+			let score = pointData.score;
+			let playClock = pointData.play_clock
+			//Figure out the text for the quarter (eg. OT1, or Q4, we dont want any Q5)
+			let period = "";
+			if(pointData.period < 5){
+				period = "Q" + pointData.period;
+			} else{
+				const ot = pointData.period - 4;
+				period = "OT" + ot;
+			}
+
+			//figure out the description based on which descriptions are null in the data
+			let description = "";
+			if(pointData.home_description !== ""){
+				description = pointData.home_description;
+			} else if (pointData.away_description !== ""){
+				description = pointData.away_description;
+			} else if(pointData.event_description !== ""){
+				description = pointData.event_description + " : ";
+				if(pointData.player1_name !== ""){
+					description += pointData.player1_name + ", "
+				}
+				if(pointData.player2_name !== ""){
+					description += pointData.player1_name
+				}
+			}
+			//Create the actual content to be appended to the tooltip
+			let content = '<h3>' + score + '</h3>' + '<p>' +
+				'<span class="value">' + period + '-' + playClock + '</span><br>' +
+				'<span class="value">' + homeTeam + ' win percentage: ' + winPercentage + '</span><br>' +
+				'<span class="value">' + description + '</span><br>' +
+				'</p>';
+            return content;
+		}
 
 		//Returns the path to draw on screen given the play predictions data
 		function position(plays) {

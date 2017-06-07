@@ -4,15 +4,14 @@
  *****/
 
 (function($) {
-
+	//create the tooltip that can be accessed from anywhere in the page
 	var nvtooltip = window.nvtooltip = {};
 
-	nvtooltip.show = function(pos, content, gravity, dist) {
+	nvtooltip.show = function(pos, content, quartile, dist) {
+		//get the tooltip
 		var container = $('<div class="nvtooltip">');
-
-		gravity = gravity || 's';
-		dist = dist || 20;
-
+		dist = dist || 40;
+		//set the content of the container
 		container
 			.html(content)
 			.css({left: -1000, top: -1000, opacity: 0})
@@ -25,47 +24,43 @@
 				scrollTop = $('body').scrollTop(),  //TODO: also adjust horizontal scroll
 				left, top;
 
-
-		//TODO: implement other gravities
-		switch (gravity) {
-			case 'e':
-			case 'w':
-			case 'n':
-				left = pos[0] - (width / 2);
-				top = pos[1] + dist;
-				if (left < 0) left = 5;
-				if (left + width > windowWidth) left = windowWidth - width - 5;
-				if (scrollTop + windowHeight < top + height) top = pos[1] - height - dist;
-				break;
-			case 's':
-				left = pos[0] - (width / 2);
+		//calculate the left and top based on which quartile the mouse is in
+		switch (quartile) {
+			case 'q3':
+				left = pos[0] + dist;
 				top = pos[1] - height - dist;
-				if (left < 0) left = 5;
-				if (left + width > windowWidth) left = windowWidth - width - 5;
-				if (scrollTop > top) top = pos[1] + dist;
+				break;
+			case 'q4':
+				left = pos[0] - width - dist;
+				top = pos[1] - height - dist;
+				break;
+			case 'q1':
+				left = pos[0] - width - dist;
+				top = pos[1] + dist;
+				break;
+			case 'q2':
+				left = pos[0] + dist;
+				top = pos[1] + dist;
+				//if (left < 0) left = 5;
+				//if (left + width > windowWidth) left = windowWidth - width - 5;
+				//if (scrollTop > top) top = pos[1] + dist;
 				break;
 		}
-
+		//place the tooltip
 		container
-				.css({
-					left: left,
-					top: top,
-					opacity: 1
-				});
+			.css({
+				left: left,
+				top: top,
+				opacity: 1
+			});
 	};
 
 	nvtooltip.cleanup = function() {
+		//File the tooltip
 		var tooltips = $('.nvtooltip');
-
-		// remove right away, but delay the show with css
-		tooltips.css({
-				'transition-delay': '0 !important',
-				'-moz-transition-delay': '0 !important',
-				'-webkit-transition-delay': '0 !important'
-		});
-
+		//Clear the opacity
 		tooltips.css('opacity',0);
-
+		//Remove tooltip after half a second
 		setTimeout(function() {
 			tooltips.remove()
 		}, 500);
