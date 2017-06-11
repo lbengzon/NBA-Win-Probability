@@ -6,10 +6,13 @@ $(document).ready(() => {
 	let height = 500 - margin.top - margin.bottom;
 	const PERIOD_TICKS = {0:"Q1", 720:"Q2",  1440:"Q3",  2160: "Q4", 2880:"OT1", 3180:"OT2", 3480:"OT3", 3780:"OT4", 4080:"OT5", 4380:"OT6"}
 	const PERCENTAGE_TICKS = [0, 0.5, 1]
+	const chartTop = $("#chart")[0].getBoundingClientRect().top;
+	const chartLeft = $("#chart")[0].getBoundingClientRect().left;
+	const scoreRegex = new RegExp('([0-9]*) - ([0-9]*)');
 
 	d3.json("../single_game_prediction.json", function(plays) {
-		let homeTeam = "homeTeam";
-		let awayTeam = "awayTeam";
+		let homeTeam = "ORL";
+		let awayTeam = "OKC";
 
 		//Figure out the max and min time passed
 		let maxTimePassed = 0
@@ -64,7 +67,7 @@ $(document).ready(() => {
 
 		// Create the SVG container and set the origin
 		let svg = d3.select("#chart").append("svg")
-			.attr("width", width + margin.left + margin.right)
+			.attr("width", width + margin.left + margin.right + 1)
 			.attr("height", height + margin.top + margin.bottom)
 			.append("g")
 			.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
@@ -80,6 +83,8 @@ $(document).ready(() => {
 
 		//Add the y axis
 		svg.append("g").call(yAxis);
+
+		var yLabel = svg.append("text").attr("class", "label").attr("transform", "translate(-15, 0)rotate(270)").text("Win Probability (ORL)").attr("text-anchor", "end")
 
 		//create the g where the clipping rect and the path representing the winning probability of the home team will be appended.
 		let winProb = svg.append("g").attr("class", "winProb");
@@ -172,27 +177,54 @@ $(document).ready(() => {
 			//create the x scale using the earliest departure and latest arrival time.
 			xScale = d3.scaleLinear().domain([minTimePassed, maxTimePassed]).range([0, width])
 			//get the period ticks based on the min and max time passed of the game
-			periodTicks = getPeriodTicks(minTimePassed, maxTimePassed);
+			let periodTicks = getPeriodTicks(minTimePassed, maxTimePassed);
 			// Create the x axis with the ticks for the periods (e.g Q1, Q2)
-			xAxis = d3.axisBottom(xScale).tickValues(periodTicks).tickFormat(function(period, i){
-				return PERIOD_TICKS[period];
+			xAxis = d3.axisBottom(xScale);
+			//get the minute ticks
+			let minuteTicks = getSliderTicks(minTimePassed, maxTimePassed, 60);
+			//add all the ticks with the ticks that signifiy the end of a period having a label
+			xAxis.tickValues(minuteTicks).tickFormat(function(period, i){
+				if (period in periodTicks){
+					return periodTicks[period];
+				}
+				return "";
 			}).tickSize(-height, 0);
+			xAxisVis.selectAll("g")
+		        .filter(function(period, i){
+				if (period in periodTicks){
+					return true;
+				}
+				return false;
+			}).style("opacity", "1");
+
+			//change all ticks that dont signify the end of a period to a lower opacity (minor ticks)
+			xAxisVis.selectAll("g")
+		        .filter(function(period, i){
+				if (period in periodTicks){
+					return false;
+				}
+				return true;
+			}).style("opacity", "0.2");
+
+		    
 			//Draw the axis
 			xAxisVis.call(xAxis);
 		}
 
 		//Gets the ticks based on the the start and end of the graph
-		function getPeriodTicks(minTimePassed, maxTimePassed){
-			let periodTicks = [];
-			minTimePassed = Math.round(minTimePassed)
-			maxTimePassed = Math.round(maxTimePassed);
+		function getPeriodTicks(minSliderTimePassed, maxSliderTimePassedX){
+			let periodTicks = {};
+			minSliderTimePassed = Math.round(minSliderTimePassed)
+			maxSliderTimePassedX = Math.round(maxSliderTimePassedX);
 			ticks = Object.keys(PERIOD_TICKS);
 			for(let i in ticks){
 				let tick = ticks[i];
-				if (tick >= minTimePassed && tick < maxTimePassed){
-					periodTicks.push(+tick);
+				if (tick >= minSliderTimePassed && tick < maxSliderTimePassedX){
+					periodTicks[+tick] = PERIOD_TICKS[tick];
 				}
 			}
+			periodTicks[maxTimePassed] = "";
+
 			return periodTicks;
 		}
 
@@ -202,7 +234,6 @@ $(document).ready(() => {
 			minTimePassed = Math.round(minTimePassed);
 			maxTimePassed = Math.round(maxTimePassed);
 			let tick = minTimePassed + tickSize - (minTimePassed % tickSize);
-			console.log(tick);
 			sliderTicks.push(tick);
 			while(tick < maxTimePassed){
 				tick += tickSize;
@@ -232,7 +263,7 @@ $(document).ready(() => {
 				//Get the quartile that the point is in so that we know where to place the tooltip
 				let quartile = getQuartile(point);
 				//display the tooltip
-				nvtooltip.show([point[0] + margin.left, point[1] + margin.top], content, quartile)
+				nvtooltip.show([point[0] + margin.left + chartLeft, point[1] + margin.top + chartTop], content, quartile)
 			} //if we haven't found a point
 			else{
 				//remove the tooltip
@@ -290,6 +321,8 @@ $(document).ready(() => {
 
 
 			let score = pointData.score;
+			let scoreArray = score.match(scoreRegex);
+			let fullScore = awayTeam + ": "+ scoreArray[1] + " " +  homeTeam + ": " + scoreArray[2];
 			let playClock = pointData.play_clock
 			//Figure out the text for the quarter (eg. OT1, or Q4, we dont want any Q5)
 			let period = getPeriodString(pointData.period);
@@ -310,7 +343,7 @@ $(document).ready(() => {
 				}
 			}
 			//Create the actual content to be appended to the tooltip
-			let content = '<h3>' + score + '</h3>' + '<p>' +
+			let content = '<h3>' + fullScore + '</h3>' + '<p>' +
 				'<span class="value">' + period + '-' + playClock + '</span><br>' +
 				'<span class="value">' + homeTeam + ' win percentage: ' + winPercentage + ' ('+percentageChange+')</span><br>' +
 				'<span class="value">' + description + '</span><br>' +

@@ -8,6 +8,7 @@ import json
 def main():
     create_csv()
 
+
 def create_csv():
     #get the pickles that were saved when you created and trained the model and encoder
     classifier_model = joblib.load("winProbabilityMLP.pkl")

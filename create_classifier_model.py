@@ -16,7 +16,8 @@ event_codes = {"Start Period ": 1,
                     "End Period ": 11,
                     "Violation ": 12,
                     "Timeout ": 13,
-                    "Ejection ": 14
+                    "Ejection ": 14,
+                    "Game Over ": 15
                    }
 
 event_codes_to_ignore = set([1, 10, 11, 13])
@@ -91,12 +92,22 @@ def parse_csv(pbp_csv):
             # get event code
             event_code = get_event_code(row[16])
 
+            # get the seconds passed since the start of the game
+            seconds_passed = getSecondsPassed(period, play_clock)
             # check if the game ended by checking if the event is an end period event
             # and if the period is greater than or equal to 4 (OT), and the scores are not the same
             # (which would mean that there is another OT)
             if event_code == 11 and period >= 4 and home_score != away_score:
                 # if its the end of the game then add the result to the game result dictionary
                 game_results[game_id] = home_victory if home_score > away_score else away_victory
+
+                if home_score > away_score:
+                    team_play = home_team_play
+                else:
+                    team_play = away_team_play
+                x.append([game_id, seconds_passed, away_score, home_score, 15, team_play])
+                print([game_id, seconds_passed, away_score, home_score, 15, team_play]);
+                full_features.append(row)
             # we dont want start period, end period, or instant replay plays
             elif event_code not in event_codes_to_ignore:
                 # if its not the end of the game then add the feature vector
@@ -109,10 +120,6 @@ def parse_csv(pbp_csv):
                     team_play = home_team_play
                 elif away_description != '':
                     team_play = away_team_play
-
-                # get the seconds passed since the start of the game
-                seconds_passed = getSecondsPassed(period, play_clock)
-
                 # game id is just added so that later we can find the result of the game (it will be removed later)
                 x.append([game_id, seconds_passed, away_score, home_score, event_code, team_play])
                 full_features.append(row)
@@ -129,12 +136,13 @@ def parse_csv(pbp_csv):
             print("============== ERROR no game result for the id " + game_id)
         # remove the game id from the feature vector because we dont want it as a feature
         feature_vector.pop(0)
-
     return x, y, full_features
 
 def create_pickle():
+    #get the features and results which will be used to create the classifier
     x, y, full_features = parse_csv('pbp.csv')
 
+    #split the features into a training set and a testing set
     mid = int(len(x)/ 2)
     train_x = x[:mid]
     train_y = y[:mid]
@@ -142,15 +150,16 @@ def create_pickle():
     test_x = x[mid:]
     test_y = y[mid:]
 
+    #encode the features that are categorical, and fit the encoder to our training set
     categorical_feats = [3, 4]
     encoder = preprocessing.OneHotEncoder(categorical_features = categorical_feats)
     encoder.fit(train_x)
     train_x = encoder.transform(train_x)
     test_x = encoder.transform(test_x)
-
+    #create the classifier and train it using our training data
     clf = neural_network.MLPClassifier()
     clf = clf.fit(train_x, train_y)
-
+    #try out the classifier on the test data
     predicted_y = clf.predict(test_x)
 
     zipped = list(zip(test_y, predicted_y))
@@ -158,9 +167,10 @@ def create_pickle():
     #print(full_xy)
     #print(predicted_y)
 
-
+    #print the accuracy of the model
     print(sum([1 if tu[0] == tu[1] else 0 for tu in zipped])/len(zipped))
     #print(clf.n_features_)
+    #Pickle the models so that it can be used anytime
     joblib.dump(clf, 'winProbabilityMLP.pkl')
     joblib.dump(encoder, 'winProbabilityEncoder.pkl')
 
